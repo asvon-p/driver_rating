@@ -1,0 +1,12 @@
+.runtime/
+__pycache__/
+*.pyc
+.venv/
+.vscode/
+checkpoints/
+*.pt
+*.pth
+*.ckpt
+*.safetensors
+*.onnx
+.env

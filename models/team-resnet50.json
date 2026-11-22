@@ -1,0 +1,39 @@
+{
+  "name": "ResNet50 · 팀 5-fold",
+  "adapter": "driver.predictor:ResNetEnsemble",
+  "root": "../../deep_learning_team/5_fold/team_folds/results/baseline",
+  "checkpoints": [
+    "fold_0/best_model.pt",
+    "fold_1/best_model.pt",
+    "fold_2/best_model.pt",
+    "fold_3/best_model.pt",
+    "fold_4/best_model.pt"
+  ],
+  "image_size": [
+    224,
+    224
+  ],
+  "classes": [
+    "c0",
+    "c1",
+    "c2",
+    "c3",
+    "c4",
+    "c5",
+    "c6",
+    "c7",
+    "c8",
+    "c9"
+  ],
+  "mean": [
+    0.485,
+    0.456,
+    0.406
+  ],
+  "std": [
+    0.229,
+    0.224,
+    0.225
+  ],
+  "temperature": 1
+}

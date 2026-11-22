@@ -1,0 +1,10 @@
+# Install in the active driver_rating environment (Python 3.12).
+torch==2.7.1
+torchvision==0.22.1
+numpy==2.2.6
+Pillow==11.3.0
+fastapi==0.121.3
+uvicorn==0.38.0
+python-multipart==0.0.34
+psycopg==3.3.9
+av==16.1.0
