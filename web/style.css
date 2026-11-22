@@ -28,6 +28,9 @@ h3 {margin:28px 0 10px;font-size:16px;letter-spacing:-.03em}
 small,.hint {color:var(--muted);font-size:13px}
 .hint {margin:14px 0}
 video {width:36%;max-height:185px;background:#172c27;border-radius:10px}
+.code-field {display:grid;gap:5px;max-width:24rem;font-size:14px;font-weight:600}
+.code-field input {min-width:0;padding:9px 12px;border:1px solid #91ab9b;border-radius:7px;font:inherit}
+.code-field input:focus-visible {outline:3px solid #79a58e;outline-offset:2px}
 .actions,.row {display:flex;align-items:center;justify-content:space-between;gap:14px}
 .actions {border-top:1px solid var(--border);padding-top:17px;margin-top:18px}
 .actions span,.versions {font-size:12px;color:var(--muted)}

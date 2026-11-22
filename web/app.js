@@ -4,7 +4,13 @@ const colors=["#398361","#b3523f","#cc7846","#9b493f","#b16e45","#a48c3c","#a18e
 let selected=null, objectUrl=null, ready=false, busy=false, generation=0;
 const secs=ms=>(ms/1000).toLocaleString("ko-KR",{maximumFractionDigits:3})+"초";
 function error(message=""){el("error").textContent=message;el("error").hidden=!message}
-function controls(){el("submit").disabled=!ready||!selected||busy;el("file").disabled=busy}
+const codeInput = el("demo-code");
+function controls(){
+  el("submit").disabled = !ready || !selected || !codeInput.value.trim() || busy;
+  el("file").disabled = busy;
+  codeInput.disabled = busy;
+}
+codeInput.addEventListener("input", controls);
 async function api(url,opts){
   const res=await fetch(url,{cache:"no-store",...opts});
   const info=await res.json();
@@ -82,7 +88,14 @@ el("form").addEventListener("submit",async e=>{
   error();busy=true;controls();el("results").hidden=true;el("progress-section").hidden=false;
   el("phase").textContent="영상 업로드 중";el("progress-text").textContent="";el("progress").removeAttribute("value");
   const form=new FormData();form.append("video",selected);
-  try{const job=await api("/analyses",{method:"POST",body:form});localStorage.setItem("driver.analysis",job.id);await watch(job.id,++generation)}
+  try{
+    const job=await api("/analyses",{
+      method:"POST", headers:{"X-Demo-Code":codeInput.value.trim()}, body:form
+    });
+    codeInput.value="";
+    localStorage.setItem("driver.analysis",job.id);
+    await watch(job.id,++generation);
+  }
   catch(err){error(err.message);el("progress-section").hidden=true;busy=false;controls()}
 });
 health();

@@ -1,6 +1,7 @@
 import hashlib
 import os
 import secrets
+from contextlib import asynccontextmanager
 from uuid import UUID, uuid4
 
 from fastapi import FastAPI, HTTPException, Request, Response, UploadFile
@@ -14,12 +15,30 @@ from .db import connect, worker_status
 from .scoring import POLICY_ID, REASONS
 from .video import MAX_BYTES, VideoError, inspect_video
 
-app = FastAPI(title="Driver Rating")
+def load_upload_code(path):
+    alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
+    if not path.exists():
+        code = "-".join("".join(secrets.choice(alphabet) for _ in range(4)) for _ in range(4))
+        with path.open("x", encoding="ascii") as handle:
+            handle.write(code + "\n")
+    code = path.read_bytes().strip()
+    if not (16 <= len(code) <= 64 and all(33 <= char <= 126 for char in code)):
+        raise RuntimeError("Invalid .runtime/demo-access-code. Stop the server and rotate the code.")
+    return code
+
+
+@asynccontextmanager
+async def lifespan(app):
+    app.state.upload_code = load_upload_code(STATE / "demo-access-code")
+    yield
+
+
+app = FastAPI(title="Driver Rating", lifespan=lifespan)
 STATIC = ROOT / "web"
 app.mount("/assets", StaticFiles(directory=STATIC), name="assets")
 
 
-class BodyLimit:
+class UploadGuard:
     def __init__(self, app):
         self.app = app
 
@@ -28,6 +47,11 @@ class BodyLimit:
             return await self.app(scope, receive, send)
         limit = MAX_BYTES + 128 * 1024  # multipart overhead; the file itself is checked separately
         headers = dict(scope["headers"])
+        supplied_code = headers.get(b"x-demo-code", b"")
+        if not secrets.compare_digest(supplied_code, scope["app"].state.upload_code):
+            return await JSONResponse(
+                {"detail": "시연용 접근 코드를 확인해 주세요."}, status_code=403
+            )(scope, receive, send)
         if int(headers.get(b"content-length", b"0")) > limit:
             return await JSONResponse({"detail": "100 MB 이하 영상을 선택해 주세요."}, 413)(
                 scope, receive, send
@@ -45,7 +69,7 @@ class BodyLimit:
         await self.app(scope, limited, send)
 
 
-app.add_middleware(BodyLimit)
+app.add_middleware(UploadGuard)
 
 
 def session(request, response):

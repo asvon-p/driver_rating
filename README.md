@@ -4,7 +4,14 @@
 
 ## 가상환경 준비
 
-Python 3.12의 `driver_rating` conda 환경을 활성화한 PowerShell에서 프로젝트 폴더로 이동한다. 처음 설치할 때 이 프로젝트와 같은 NVIDIA CUDA 12.8 빌드를 사용하려면 다음 명령을 실행한다.
+처음 받는 Windows PC에서는 PowerShell에서 설치할 상위 폴더로 이동한 뒤 `develop` 브랜치를 복제한다.
+
+```powershell
+git clone --branch develop https://github.com/asvon-p/driver_rating.git
+Set-Location driver_rating
+```
+
+`driver_rating` 환경이 없으면 `conda create -n driver_rating python=3.12`로 만든다. 프로젝트 폴더에서 다음 명령을 실행해 CUDA 12.8용 라이브러리를 설치한다.
 
 ```powershell
 conda activate driver_rating
@@ -25,6 +32,8 @@ CPU에서만 사용할 경우 첫 번째 pip 명령의 인덱스를 `https://dow
 
 ### 1. 호스트 PC에서 분석 서버 시작
 
+첫 실행 전 팀에서 별도로 받은 체크포인트 5개를 [모델 변경](#모델-변경)에 설명된 경로에 준비한다. 아래 경로와 표의 공개 주소는 현재 시연 호스트 기준이다. 다른 PC에서는 실제 복제 경로를 사용하고, 공개 주소는 그 PC에서 `tailscale funnel status`로 확인한다.
+
 첫 번째 PowerShell에서 다음 명령을 실행하고 창을 열어 둔다. `driver_rating` 환경이 이미 활성화되어 있으면 `conda activate`는 생략한다.
 
 ```powershell
@@ -44,7 +53,7 @@ Set-Location 'C:\Users\user\Desktop\vscode setting\driver_rating'
 Get-Content -LiteralPath .\.runtime\demo-access-code
 ```
 
-접근 코드 기능은 현재 시연 호스트의 로컬 구현에 적용되어 있다. 새 설치에서 공개 연결을 열기 전에는 다음 요청이 `403`을 반환하는지 확인한다. `422`가 나오면 접근 코드 기능이 적용되었는지 먼저 확인한다.
+새로 복제해 실행한 서버는 자체 접근 코드를 생성한다. 공개 연결을 열기 전에 다음 명령으로 코드 없는 업로드 요청이 `403`으로 거절되는지 확인할 수 있다.
 
 ```powershell
 curl.exe -s -o NUL -w "%{http_code}" -X POST http://127.0.0.1:8017/analyses

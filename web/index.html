@@ -16,6 +16,9 @@
 <div class="input-group"><div id="drop" class="drop"><label for="file"><span class="upload-icon" aria-hidden="true">↑</span><strong id="filename">영상을 선택하거나 여기에 놓으세요</strong><small>MP4 (H.264) · 최대 3분 · 100 MB · 1080p</small></label><input id="file" type="file" accept="video/mp4,.mp4"></div>
 <video id="preview" hidden controls muted playsinline preload="metadata" aria-label="선택한 영상 미리보기"></video></div>
 <p class="hint">고정 카메라로 한 운전자의 상체와 양손이 보이는 영상을 사용하세요. 원본은 분석 종료 후 삭제되고 결과는 7일간 보관됩니다.</p>
+<label class="code-field" for="demo-code">시연용 접근 코드
+<input id="demo-code" type="password" required maxlength="64" pattern="[!-~]+" autocomplete="off" autocapitalize="none" spellcheck="false">
+</label>
 <div class="actions"><span id="model"></span><button id="submit" type="submit" disabled>안전도 분석하기</button></div>
 </form>
 <p id="error" class="error" role="alert" hidden></p>
