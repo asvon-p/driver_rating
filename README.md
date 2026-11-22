@@ -2,7 +2,7 @@
 
 운전석 MP4 영상 한 편을 올리면 팀의 ResNet50 5개가 각 표본을 분류한다. 결과 화면에서 안전도, 판정률, 자세별 시간·감점, 미판정 사유, 시간대별 자세를 확인할 수 있다.
 
-## 로컬 실행
+## 가상환경 준비
 
 Python 3.12의 `driver_rating` conda 환경을 활성화한 PowerShell에서 프로젝트 폴더로 이동한다. 처음 설치할 때 이 프로젝트와 같은 NVIDIA CUDA 12.8 빌드를 사용하려면 다음 명령을 실행한다.
 
@@ -12,15 +12,61 @@ python -m pip install torch==2.7.1 torchvision==0.22.1 --index-url https://downl
 python -m pip install -r requirements.txt
 ```
 
-CPU에서만 사용할 경우 첫 번째 pip 명령의 인덱스를 `https://download.pytorch.org/whl/cpu`로 바꾼다. 이미 설치된 환경에서는 아래 명령으로 서버를 시작하고 브라우저에서 [로컬 서비스](http://127.0.0.1:8017/)를 연다. API와 모델 워커 모두 활성 환경의 Python을 사용한다.
+CPU에서만 사용할 경우 첫 번째 pip 명령의 인덱스를 `https://download.pytorch.org/whl/cpu`로 바꾼다.
+
+## 로컬·시연 서버 실행 및 중지
+
+로컬과 공개 시연은 호스트 PC에서 실행하는 같은 분석 서버를 사용한다. 학교 컴퓨터에서는 브라우저로 공개 시연 주소를 열면 된다.
+
+| 구분 | 접속 주소 | 호스트 PC에서 실행 | 호스트 PC에서 중지 |
+| --- | --- | --- | --- |
+| 로컬 분석 서버 | [http://127.0.0.1:8017/](http://127.0.0.1:8017/) | `.\start.ps1` | 실행 창에서 `Ctrl+C` 또는 프로젝트 폴더의 다른 PowerShell에서 `.\start.ps1 -Stop` |
+| 공개 시연 서버 | [https://sgy-host.taile39b25.ts.net:10000/](https://sgy-host.taile39b25.ts.net:10000/) | `tailscale funnel --bg --https=10000 http://127.0.0.1:8017` | `tailscale funnel --https=10000 off` |
+
+### 1. 호스트 PC에서 분석 서버 시작
+
+첫 번째 PowerShell에서 다음 명령을 실행하고 창을 열어 둔다. `driver_rating` 환경이 이미 활성화되어 있으면 `conda activate`는 생략한다.
 
 ```powershell
+Set-Location 'C:\Users\user\Desktop\vscode setting\driver_rating'
+conda activate driver_rating
 .\start.ps1
 ```
 
-`분석 준비 완료`가 표시되면 영상을 선택하고 **안전도 분석하기**를 누른다. 업로드한 브라우저에서 새로고침하면 마지막 분석을 다시 불러온다. 포그라운드 실행은 Ctrl+C로, 백그라운드 실행은 같은 폴더의 다른 PowerShell에서 `.\start.ps1 -Stop`으로 종료한다. `-Port 8018`처럼 HTTP 포트를 변경할 수 있다. 한 프로젝트에서는 서버 한 개를 실행한다.
+로컬 주소를 열어 **분석 준비 완료**가 표시되는지 확인한다. API와 모델 워커는 활성 환경의 Python을 사용한다. PowerShell 스크립트 실행이 제한된 환경에서는 `python -B -X utf8 run.py`로 시작하고 `python -B -X utf8 run.py --stop`으로 종료한다. `-Port 8018`처럼 포트를 변경했다면 Funnel 명령의 대상 포트도 맞춘다. 한 프로젝트에서는 분석 서버 한 개를 실행한다.
 
-PowerShell에서 스크립트 실행이 제한된 경우 활성 환경에서 `python -B -X utf8 run.py`로 시작하고, 같은 명령에 `--stop`을 붙여 종료할 수 있다.
+### 2. 접근 코드 확인 및 공개 연결
+
+호스트 PC의 두 번째 PowerShell에서 다음 명령으로 업로드용 접근 코드를 확인한다. 이 코드는 첫 서버 시작 때 생성되며 재시작 후에도 유지된다. 코드와 시연 영상은 Git에서 제외한다.
+
+```powershell
+Set-Location 'C:\Users\user\Desktop\vscode setting\driver_rating'
+Get-Content -LiteralPath .\.runtime\demo-access-code
+```
+
+접근 코드 기능은 현재 시연 호스트의 로컬 구현에 적용되어 있다. 새 설치에서 공개 연결을 열기 전에는 다음 요청이 `403`을 반환하는지 확인한다. `422`가 나오면 접근 코드 기능이 적용되었는지 먼저 확인한다.
+
+```powershell
+curl.exe -s -o NUL -w "%{http_code}" -X POST http://127.0.0.1:8017/analyses
+```
+
+같은 창에서 `tailscale funnel status`를 실행한다. `:10000`에 `Funnel on`과 `http://127.0.0.1:8017`이 표시되면 이미 공개 중이다. 꺼져 있으면 다음 명령을 실행한다.
+
+```powershell
+tailscale funnel --bg --https=10000 http://127.0.0.1:8017
+tailscale funnel status
+```
+
+학교 컴퓨터에서 공개 시연 주소를 열고 영상을 선택한 뒤 접근 코드를 입력하고 **안전도 분석하기**를 누른다. 학교 컴퓨터에는 Tailscale 설치가 필요 없다. 시연 중에는 호스트 PC의 절전 모드를 해제하고 Tailscale과 분석 서버를 켜 둔다. 업로드한 브라우저에서 새로고침하면 마지막 결과를 다시 볼 수 있다.
+
+### 3. 시연 종료
+
+1. 호스트 PC의 두 번째 PowerShell에서 `tailscale funnel --https=10000 off`를 실행하면 공개 접속이 종료된다. 이 명령은 시연용 `10000` 포트에만 적용되며, 기존 `443` 서비스는 계속 운영된다.
+2. 로컬 분석도 끝내려면 첫 번째 창에서 `Ctrl+C`를 누른다. 백그라운드로 실행했다면 프로젝트 폴더에서 `.\start.ps1 -Stop`을 실행한다.
+
+접근 코드를 교체하려면 분석 서버를 종료하고 `.runtime/demo-access-code` 파일을 삭제한 뒤 서버를 다시 시작한다.
+
+## 시연 영상
 
 **입력 조건**은 H.264 MP4, 최대 3분, 100 MB, 1920×1080(세로 영상 포함)이다. 고정 카메라로 한 운전자의 상체와 양손이 보이는 영상을 사용한다. 개발 PC에서 사용한 로컬 시연 파일은 `.runtime/demo/driver-demo.mp4`다. 저장소를 새로 받은 경우 직접 준비한 영상을 사용한다. 기존 팀 학습 사진으로 만든 20초 클립이며 일반 운전 12초, 오른손 문자 입력 4초, 검은 화면 4초로 구성했다. 이 PC에서 검증한 결과는 75.0점, 판정률 80.0%다.
 
@@ -59,7 +105,7 @@ FastAPI는 업로드와 결과 조회를 맡고, 별도 워커 프로세스가 P
 | `.runtime/uploads`, `.runtime/tmp` | 업로드·디코딩 임시 파일. 종료 후 원본을 삭제하며, 워커가 기동 중이면 중단된 원본도 24시간을 기준으로 정리한다. 프레임은 메모리에서 처리한다. |
 | `.runtime/postgres`, `.runtime/logs` | 로컬 PostgreSQL 실행 파일과 워커·DB 로그. Python 라이브러리는 활성 conda 환경에 설치한다. |
 
-`POST /analyses`는 `video` multipart 파일을 받아 202와 분석 ID를 반환한다. `GET /analyses/{id}`에서 대기·처리·완료·보류·실패 상태를 확인한다. `GET /analyses/{id}/result`는 점수, 판정률(%), 구간 시각(ms), 자세별 시간(초), 제외 사유를 반환한다. 상태와 결과 조회에는 업로드 세션 쿠키를 함께 보낸다.
+`POST /analyses`는 `X-Demo-Code` 헤더를 먼저 검사한다. 코드가 없거나 틀리면 403을 반환한다. 코드가 맞으면 `video` multipart 파일을 받아 202와 분석 ID를 반환한다. `GET /analyses/{id}`에서 대기·처리·완료·보류·실패 상태를 확인한다. `GET /analyses/{id}/result`는 점수, 판정률(%), 구간 시각(ms), 자세별 시간(초), 제외 사유를 반환한다. 상태와 결과 조회에는 업로드 세션 쿠키를 함께 보낸다.
 
 Windows x64에서 최초 실행 시 Maven Central의 [PostgreSQL 배포본](https://repo.maven.apache.org/maven2/io/zonky/test/postgres/embedded-postgres-binaries-windows-amd64/17.12.0/)을 프로젝트 안에 내려받아 SHA-256을 검증한다. 이후 같은 환경과 체크포인트로 오프라인에서 다시 시작할 수 있다. 기존 PostgreSQL을 사용할 경우 전용 빈 DB의 연결 문자열을 `DRIVER_DATABASE_URL`에 설정하고 해당 Python에서 사용할 수 있는 libpq 또는 psycopg 바이너리 드라이버를 준비한다.
 
