@@ -1,17 +1,17 @@
 {
-  "name": "ResNet50 baseline · 임시 B",
+  "name": "R10KF · 원본 + 균형 증강",
   "adapter": "driver.predictor:ResNetEnsemble",
-  "root": "../.runtime/models/B",
+  "root": "../.runtime/models/R10KF_balanced",
   "checkpoints": [
-    "fold_0/best_model.pt",
-    "fold_1/best_model.pt",
-    "fold_2/best_model.pt",
-    "fold_3/best_model.pt",
-    "fold_4/best_model.pt"
+    "R10KF_fold0_best.pt",
+    "R10KF_fold1_best.pt",
+    "R10KF_fold2_best.pt",
+    "R10KF_fold3_best.pt",
+    "R10KF_fold4_best.pt"
   ],
   "image_size": [
-    224,
-    224
+    384,
+    384
   ],
   "classes": [
     "c0",
@@ -36,6 +36,8 @@
     0.225
   ],
   "temperature": 1,
-  "provisional": true,
-  "description": "기존 원본 학습 baseline · 증강 최종 모델 교체 대기"
+  "provisional": false,
+  "description": "원본 + 균형 증강 학습 · 원본 검증 OOF 정확도 91.28% · Log Loss 0.30078",
+  "architecture": "r10",
+  "zoom_size": 415
 }

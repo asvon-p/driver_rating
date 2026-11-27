@@ -69,14 +69,16 @@ tailscale funnel status
 
 ## 모델 변경
 
-현재 서비스의 임시 조합은 다음과 같다. 두 모델의 차이로 증강 학습 효과를 단정할 수 없다.
+기본 A·B는 같은 R10KF 구조로 학습한 최종 모델이다. 각각 해당 실험 폴더의 체크포인트 5개를 사용한다.
 
-| 역할 | 설정 | 기본 가중치 경로 | 추론 |
-| --- | --- | --- | --- |
-| A · R10KF | `models/comparison-a.json` | `.runtime/models/A/R10KF_fold0_best.pt` ~ `R10KF_fold4_best.pt` | 384×384, 원본·415 중앙 크롭, fold 내부 평균 로짓 → softmax → 5개 fold 평균 |
-| B · 기존 baseline | `models/comparison-b.json` | `.runtime/models/B/fold_0/best_model.pt` ~ `fold_4/best_model.pt` | 224×224, fold별 softmax 후 5개 확률 평균 |
+| 역할 | 서비스 설정 | 기본 체크포인트 폴더 | 원본 OOF Log Loss | 원본 OOF 정확도 |
+| --- | --- | --- | ---: | ---: |
+| A · 원본 학습 | `models/comparison-a.json` | `.runtime/models/R10KF_original/` | 0.30916 | 90.82% |
+| B · 원본 + 균형 증강 학습 | `models/comparison-b.json` | `.runtime/models/R10KF_balanced/` | 0.30078 | 91.28% |
 
-새로 복제한 PC에는 체크포인트를 별도로 배치한다. 확정 모델을 받을 때는 해당 JSON의 `name`, `description`, `provisional`, `architecture`, `root`, `checkpoints`, 입력 크기·정규화·TTA를 실제 학습 설정과 맞춘다. R10은 순수 state dict, baseline은 `model_state`를 포함한 체크포인트를 사용한다. 다른 구조는 `predict_batch(images)`와 `heatmap(image, target)`를 제공하는 운영자 관리 어댑터를 등록한다. 서버를 재시작하면 내용 해시로 새 버전을 구분한다. 모델 하나만 준비된 경우에도 해당 모델로 분석할 수 있다.
+새 PC에서는 두 폴더 각각에 해당 실험의 `R10KF_fold0_best.pt`부터 `R10KF_fold4_best.pt`까지 배치한다. 추론에는 이 5개 가중치가 필요하다. 실험별 `summary.json`과 `run_config.json`은 학습 성능과 설정을 대조할 때 사용한다.
+
+두 모델 모두 RGB 사진을 ImageNet 기준으로 정규화한다. 384×384 원본과 415×415에서 중앙 384×384를 자른 확대본을 각 fold에 입력한 뒤 두 출력 로짓을 평균한다. 그 결과에 softmax를 적용하고 5개 fold의 확률을 평균해 자세를 결정한다. 비교표의 OOF는 동일한 운전자 분할에서 원본 22,424장 각각을 검증 fold로 평가한 학습 결과다. 시연 화면의 EMA는 업로드한 묶음으로 계산한다.
 
 다른 설정 파일을 선택하려면 서버 시작 전에 역할별 변수를 지정한다. CPU 추론은 `$env:DRIVER_DEVICE = "cpu"`로 선택한다.
 

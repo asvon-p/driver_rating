@@ -1,7 +1,7 @@
 {
-  "name": "R10KF · 임시 A",
+  "name": "R10KF · 원본",
   "adapter": "driver.predictor:ResNetEnsemble",
-  "root": "../.runtime/models/A",
+  "root": "../.runtime/models/R10KF_original",
   "checkpoints": [
     "R10KF_fold0_best.pt",
     "R10KF_fold1_best.pt",
@@ -36,8 +36,8 @@
     0.225
   ],
   "temperature": 1,
-  "provisional": true,
-  "description": "팀 R10KF 5-fold · 원본 및 중앙 확대 TTA",
+  "provisional": false,
+  "description": "원본 학습 · 원본 검증 OOF 정확도 90.82% · Log Loss 0.30916",
   "architecture": "r10",
   "zoom_size": 415
 }
