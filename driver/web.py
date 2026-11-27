@@ -1,11 +1,8 @@
 import hashlib
-import hmac
 import io
 import json
 import os
 import secrets
-import time
-from contextlib import asynccontextmanager
 from typing import Literal
 from uuid import UUID, uuid4
 
@@ -17,7 +14,7 @@ from pydantic import BaseModel, Field, ValidationError
 from psycopg.types.json import Jsonb
 from starlette.formparsers import MultiPartException
 
-from local_runtime import ROOT, STATE
+from local_runtime import ROOT
 from .comparison import ROLES, RULES
 from .db import connect, worker_status
 
@@ -27,46 +24,36 @@ MAX_BODY = 48 * 1024 * 1024
 CAM_METHOD = "layer4-ensemble-v1"
 BASE = "/api/image-comparisons"
 VISIBLE = "(pinned OR expires>now())"
-COOKIE = "driver_admin"
+READABLE = VISIBLE + " AND (%s OR pinned OR browser_key=%s)"
+EDITABLE = VISIBLE + " AND (%s OR browser_key=%s)"
+COOKIE = "driver_photos"
+LOOPBACK = {"localhost", "127.0.0.1", "::1"}
 
-
-def load_upload_code(path):
-    if not path.exists():
-        alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789"
-        code = "-".join("".join(secrets.choice(alphabet) for _ in range(4)) for _ in range(4))
-        with path.open("x", encoding="ascii") as handle:
-            handle.write(code + "\n")
-    code = path.read_bytes().strip()
-    if not (16 <= len(code) <= 64 and all(33 <= c <= 126 for c in code)):
-        raise RuntimeError("Invalid .runtime/demo-access-code")
-    return code
-
-
-@asynccontextmanager
-async def lifespan(app):
-    app.state.secret = load_upload_code(STATE / "demo-access-code")
-    yield
-
-
-app = FastAPI(title="Driver Rating", lifespan=lifespan)
+app = FastAPI(title="Driver Rating")
 app.mount("/assets", StaticFiles(directory=ROOT / "web"), name="assets")
 
 
-def signature(secret, value):
-    return hmac.new(secret, value.encode("ascii"), hashlib.sha256).hexdigest()
-
-
-def authenticated(request):
+def browser_key(request: Request, response: Response | None = None):
+    """Remember an uploader without a login. Only a digest is kept in PostgreSQL."""
     token = request.cookies.get(COOKIE, "")
-    try:
-        expiry, nonce, digest = token.split(".")
-        return (len(token) < 130 and int(expiry) >= time.time()
-                and hmac.compare_digest(digest, signature(app.state.secret, expiry + "." + nonce)))
-    except (ValueError, UnicodeError, TypeError):
-        return False
+    valid = len(token) == 64 and all(c in "0123456789abcdef" for c in token)
+    if not valid:
+        if response is None:
+            return None
+        token = secrets.token_hex(32)
+        response.set_cookie(COOKIE, token, max_age=365 * 86400, httponly=True, samesite="lax",
+                            secure=os.getenv("DRIVER_PUBLIC_SESSION") == "1" or request.url.scheme == "https")
+    return hashlib.sha256(token.encode("ascii")).hexdigest()
 
 
-class AdminGuard:
+def access(request: Request):
+    # Demo mode always applies the public scope, including behind the loopback Funnel proxy.
+    local = (os.getenv("DRIVER_PUBLIC_SESSION") != "1" and request.url.hostname in LOOPBACK
+             and request.client is not None and request.client.host in LOOPBACK)
+    return local, browser_key(request)
+
+
+class RequestGuard:
     def __init__(self, app):
         self.app = app
 
@@ -74,8 +61,6 @@ class AdminGuard:
         if scope["type"] != "http" or not scope["path"].startswith("/api/"):
             return await self.app(scope, receive, send)
         request = Request(scope)
-        if scope["path"] != "/api/admin/session" and not authenticated(request):
-            return await JSONResponse({"detail": "관리자 로그인이 필요합니다."}, 403)(scope, receive, send)
         if request.headers.get("sec-fetch-site") == "cross-site" and request.method != "GET":
             return await JSONResponse({"detail": "동일 사이트에서 요청해 주세요."}, 403)(scope, receive, send)
         size = request.headers.get("content-length", "0")
@@ -99,41 +84,20 @@ class AdminGuard:
         await self.app(scope, limited, private)
 
 
-app.add_middleware(AdminGuard)
+app.add_middleware(RequestGuard)
 
 
 @app.get("/", include_in_schema=False)
-def home():
-    return FileResponse(ROOT / "web" / "index.html", headers={"Cache-Control": "no-store"})
+def home(request: Request):
+    page = FileResponse(ROOT / "web" / "index.html", headers={"Cache-Control": "no-store"})
+    browser_key(request, page)
+    return page
 
 
 @app.get("/health")
 def health():
     status = worker_status()
     return {"state": status["state"]}
-
-
-@app.get("/api/admin/session")
-def session(request: Request):
-    return {"authenticated": authenticated(request)}
-
-
-@app.post("/api/admin/session")
-def login(request: Request, response: Response):
-    if not secrets.compare_digest(request.headers.get("x-demo-code", "").encode(), app.state.secret):
-        raise HTTPException(403, "접근 코드를 확인해 주세요.")
-    lifetime = 12 * 3600
-    value = f"{int(time.time()) + lifetime}.{secrets.token_hex(12)}"
-    response.set_cookie(COOKIE, value + "." + signature(app.state.secret, value), max_age=lifetime,
-                        httponly=True, samesite="strict", secure=os.getenv("DRIVER_PUBLIC_SESSION") == "1"
-                        or request.url.scheme == "https")
-    return {"authenticated": True}
-
-
-@app.delete("/api/admin/session")
-def logout(response: Response):
-    response.delete_cookie(COOKIE)
-    return {"authenticated": False}
 
 
 @app.get("/api/admin/status")
@@ -177,7 +141,7 @@ def read_image(upload, index):
 
 
 @app.post(BASE, status_code=202)
-def create(files: list[UploadFile] = File(), order: str = Form(), title: str = Form(max_length=120)):
+def create(request: Request, response: Response, files: list[UploadFile] = File(), order: str = Form(), title: str = Form(max_length=120)):
     try:
         raw = json.loads(order)
         if not isinstance(raw, list) or not 1 <= len(raw) <= MAX_FILES:
@@ -195,8 +159,8 @@ def create(files: list[UploadFile] = File(), order: str = Form(), title: str = F
     ident = uuid4()
     rules = dict(RULES, cam_method=CAM_METHOD)
     with connect() as db:
-        db.execute("""INSERT INTO image_comparisons(id,title,models,rules,photo_count) VALUES (%s,%s,%s,%s,%s)""",
-                   (ident, title.strip() or "사진 묶음", Jsonb(ready["model"]), Jsonb(rules), len(items)))
+        db.execute("""INSERT INTO image_comparisons(id,title,models,rules,photo_count,browser_key) VALUES (%s,%s,%s,%s,%s,%s)""",
+                   (ident, title.strip() or "사진 묶음", Jsonb(ready["model"]), Jsonb(rules), len(items), browser_key(request, response)))
         for pos, item in enumerate(items, 1):
             pixels, thumbnail = read_image(uploads[str(item.id)], pos)
             db.execute("""INSERT INTO comparison_photos(id,comparison_id,position,name,metadata,pixels,thumbnail)
@@ -206,55 +170,61 @@ def create(files: list[UploadFile] = File(), order: str = Form(), title: str = F
 
 
 @app.get(BASE)
-def history(offset: int = Query(default=0, ge=0)):
+def history(request: Request, offset: int = Query(default=0, ge=0)):
     with connect() as db:
         return db.execute(f"""SELECT id,title,created,pinned,state,photo_count,summary,
             (SELECT id FROM comparison_photos WHERE comparison_id=c.id ORDER BY position LIMIT 1) AS cover
-            FROM image_comparisons c WHERE {VISIBLE} ORDER BY pinned DESC,created DESC,id LIMIT 25 OFFSET %s""",
-            (offset,)).fetchall()
+            FROM image_comparisons c WHERE {READABLE} ORDER BY pinned DESC,created DESC,id LIMIT 25 OFFSET %s""",
+            (*access(request), offset)).fetchall()
 
 
-def require_case(db, ident):
-    row = db.execute(f"SELECT * FROM image_comparisons WHERE id=%s AND {VISIBLE}", (ident,)).fetchone()
+def require_case(db, ident, request):
+    local, owner = access(request)
+    row = db.execute(f"SELECT * FROM image_comparisons WHERE id=%s AND {READABLE}",
+                     (ident, local, owner)).fetchone()
     if not row:
         raise HTTPException(404, "묶음을 찾을 수 없습니다.")
+    saved_owner = row.pop("browser_key")
+    row["can_manage"] = local or (owner is not None and owner == saved_owner)
     return row
 
 
 @app.get(BASE + "/{ident}")
-def detail(ident: UUID):
+def detail(ident: UUID, request: Request):
     with connect() as db:
-        row = require_case(db, ident)
+        row = require_case(db, ident, request)
         row["photos"] = db.execute("""SELECT id,position,name,metadata,results FROM comparison_photos
             WHERE comparison_id=%s ORDER BY position""", (ident,)).fetchall()
         return row
 
 
 @app.put(BASE + "/{ident}/pin")
-def pin(ident: UUID, pinned: bool):
+def pin(ident: UUID, pinned: bool, request: Request):
     with connect() as db:
         row = db.execute(f"""UPDATE image_comparisons SET pinned=%s,expires=CASE WHEN pinned AND NOT %s
-            THEN now()+interval '7 days' ELSE expires END WHERE id=%s AND {VISIBLE} RETURNING pinned""",
-            (pinned, pinned, ident)).fetchone()
+            THEN now()+interval '7 days' ELSE expires END WHERE id=%s AND {EDITABLE} RETURNING pinned""",
+            (pinned, pinned, ident, *access(request))).fetchone()
         if not row:
             raise HTTPException(404, "묶음을 찾을 수 없습니다.")
         return row
 
 
 @app.delete(BASE + "/{ident}")
-def delete_case(ident: UUID):
+def delete_case(ident: UUID, request: Request):
     with connect() as db:
-        require_case(db, ident)
-        db.execute("DELETE FROM image_comparisons WHERE id=%s", (ident,))
+        deleted = db.execute(f"DELETE FROM image_comparisons WHERE id=%s AND {EDITABLE} RETURNING id",
+                             (ident, *access(request))).fetchone()
+        if not deleted:
+            raise HTTPException(404, "관리할 수 있는 묶음을 찾을 수 없습니다.")
     return {"deleted": True}
 
 
 @app.get(BASE + "/{ident}/photos/{photo}")
-def photo_image(ident: UUID, photo: UUID, thumb: bool = False):
+def photo_image(ident: UUID, photo: UUID, request: Request, thumb: bool = False):
     col = "thumbnail" if thumb else "pixels"
     with connect() as db:
         row = db.execute(f"""SELECT {col} AS data FROM comparison_photos p JOIN image_comparisons c
-            ON c.id=p.comparison_id WHERE c.id=%s AND p.id=%s AND {VISIBLE}""", (ident, photo)).fetchone()
+            ON c.id=p.comparison_id WHERE c.id=%s AND p.id=%s AND {READABLE}""", (ident, photo, *access(request))).fetchone()
         if not row:
             raise HTTPException(404, "사진을 찾을 수 없습니다.")
         return Response(row["data"], media_type="image/jpeg" if thumb else "image/png")
@@ -264,7 +234,7 @@ def photo_image(ident: UUID, photo: UUID, thumb: bool = False):
 def cam(ident: UUID, photo: UUID, role: Literal["A", "B"], request: Request):
     with connect() as db:
         row = db.execute(f"""SELECT p.results,c.rules,c.models FROM comparison_photos p JOIN image_comparisons c
-            ON c.id=p.comparison_id WHERE c.id=%s AND p.id=%s AND {VISIBLE}""", (ident, photo)).fetchone()
+            ON c.id=p.comparison_id WHERE c.id=%s AND p.id=%s AND {READABLE}""", (ident, photo, *access(request))).fetchone()
         if not row or "label" not in ((row["results"] or {}).get(role) or {}):
             raise HTTPException(409, "설명할 사진별 예측이 없습니다.")
         method = row["rules"]["cam_method"]

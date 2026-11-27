@@ -3,7 +3,7 @@ const html = value => String(value ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;"
 const root = $("#workspace"), api = "/api/image-comparisons", roles = ["A","B"];
 const names = ["일반 운전","오른손 문자 입력","오른손 통화","왼손 문자 입력","왼손 통화","라디오 조작","음료 마시기","뒤로 팔 뻗기","머리 손질·화장","동승자와 대화"];
 const wait = ms => new Promise(resolve => setTimeout(resolve, ms));
-let signed = false, generation = 0, draft = [], draftTitle = "", current = null, selected = 0, heatUrls = [], historyOffset = 0;
+let generation = 0, draft = [], draftTitle = "", current = null, selected = 0, heatUrls = [], historyOffset = 0;
 function notice(msg = "") { $("#message").textContent = msg; $("#message").hidden = !msg; }
 function badge(g) { return g ? `<span class="badge ${g==="안전 운전"?"safe":g==="일반 운전"?"mid":"risk"}">${html(g)}</span>` : ""; }
 function fmt(n) { return n == null ? "—" : n.toFixed(1); }
@@ -15,29 +15,17 @@ function points(n,r) {
 function options(values, active) { return values.map(([v,t])=>`<option value="${html(v)}" ${String(v)===String(active)?"selected":""}>${html(t)}</option>`).join(""); }
 function clearHeat() { heatUrls.forEach(URL.revokeObjectURL); heatUrls=[]; }
 function clearDraft() { draft.forEach(p=>URL.revokeObjectURL(p.url)); draft=[]; draftTitle=""; }
-function gate(on) {
-  signed=on; $("#gate").hidden=on; $("#nav").hidden=!on;
-  if(!on){generation++; clearHeat(); clearDraft(); current=null; root.replaceChildren();}
-}
 async function request(path, config={}) {
   const res=await fetch(path,{cache:"no-store",...config});
   if(!res.ok){
     const data=await res.json().catch(()=>({}));
-    if(res.status===403 && path!=="/api/admin/session") gate(false);
     throw Error(typeof data.detail==="string"?data.detail:`요청 실패 (${res.status})`);
   }
   return res;
 }
 const json = async (path,config) => (await request(path,config)).json();
-$("#login").onsubmit=async event=>{
-  event.preventDefault(); const code=event.target.elements.code;
-  try{await json("/api/admin/session",{method:"POST",headers:{"X-Demo-Code":code.value.trim()}}); code.value=""; $("#authError").textContent="";gate(true);route();}
-  catch(e){$("#authError").textContent=e.message;}
-};
-$("#logout").onclick=async()=>{try{await request("/api/admin/session",{method:"DELETE"});gate(false);notice();}catch(e){notice(e.message);}};
 window.addEventListener("hashchange",route);
 async function route(){
-  if(!signed)return;
   const token=++generation; clearHeat(); current=null; notice();
   const key=location.hash.slice(1)||"new";
   document.querySelectorAll("nav a").forEach(a=>{if(a.hash==="#"+(key==="new"?"new":"history"))a.setAttribute("aria-current","page");else a.removeAttribute("aria-current");});
@@ -128,9 +116,9 @@ function renderCase(){
   <details><summary>EMA 계산 보기</summary><p>α = ${policy.alpha}. 유효 사진마다 이전 관찰 가중치를 ${(1-policy.alpha).toFixed(2)}배로 줄이고 가중치 합으로 나눕니다. 빈칸은 보류된 관찰입니다.</p>
   <div class="scroll"><table><thead><tr><th>순번</th><th>A 사진 / EMA</th><th>A 비중</th><th>B 사진 / EMA</th><th>B 비중</th></tr></thead><tbody>${d.photos.map((p,i)=>`<tr><td>${i+1}</td>${roles.map(r=>`<td>${p.results[r].score??"—"} / ${points(s.models[r].trace[i],policy)}</td><td>${s.models[r].weights[i]==null?"—":fmt(100*s.models[r].weights[i])+"%"}</td>`).join("")}</tr>`).join("")}</tbody></table></div></details></section>
   <section class="panel"><h2>사진별 판단</h2><div class="thumbs">${d.photos.map((p,i)=>`<button data-select="${i}" aria-label="${i+1}번 사진 선택"><img alt="" loading="lazy" src="${imgPath(d,p)}?thumb=true">${i+1}번</button>`).join("")}</div><div id="photoDetail"></div></section>
-  <div class="actions"><button id="pin">${d.pinned?"발표용 고정 해제":"발표용 고정"}</button><button id="prep">선택 사진의 양쪽 Grad-CAM 저장</button><button id="delete">묶음 삭제</button></div></div>`;
+  <div class="actions"><button id="pin" ${d.can_manage?"":"hidden"}>${d.pinned?"발표용 고정 해제":"발표용 고정"}</button><button id="prep">선택 사진의 양쪽 Grad-CAM 저장</button><button id="delete" ${d.can_manage?"":"hidden"}>묶음 삭제</button></div></div>`;
   $(".thumbs").onclick=e=>{const t=e.target.closest("[data-select]");if(t)selectPhoto(Number(t.dataset.select));};
-  $("#pin").onclick=async e=>{try{const v=await json(`${api}/${d.id}/pin?pinned=${!d.pinned}`,{method:"PUT"});d.pinned=v.pinned;e.target.textContent=d.pinned?"발표용 고정 해제":"발표용 고정";notice(d.pinned?"발표용으로 고정했습니다.":"고정을 해제했습니다.");}catch(ex){notice(ex.message);}};
+  $("#pin").onclick=async e=>{try{const v=await json(`${api}/${d.id}/pin?pinned=${!d.pinned}`,{method:"PUT"});d.pinned=v.pinned;e.target.textContent=d.pinned?"발표용 고정 해제":"발표용 고정";notice(d.pinned?"발표용으로 고정했습니다. 시연 주소에서 이 묶음을 볼 수 있습니다.":"고정을 해제했습니다.");}catch(ex){notice(ex.message);}};
   $("#delete").onclick=async()=>{if(!confirm("이 묶음의 사진과 분석 결과를 삭제할까요?"))return;try{await json(`${api}/${d.id}`,{method:"DELETE"});location.hash="history";}catch(e){notice(e.message);}};
   $("#prep").onclick=()=>roles.forEach(r=>{const b=$("#cam"+r);if(!b.disabled && !b.dataset.loaded)b.click();});
   selectPhoto(0);
@@ -175,4 +163,4 @@ function drawChart(){
   el.onclick=e=>selectPhoto(n===1?0:Math.max(0,Math.min(n-1,Math.round((e.offsetX-left)*(n-1)/(right-left)))));
 }
 window.addEventListener("resize",drawChart);
-(async()=>{try{const s=await json("/api/admin/session");gate(s.authenticated);if(s.authenticated)route();}catch(e){gate(false);notice(e.message);}})();
+route();

@@ -23,6 +23,7 @@ def initialize():
                 photo_count integer NOT NULL, processed integer NOT NULL DEFAULT 0,
                 created timestamptz NOT NULL DEFAULT now(), expires timestamptz NOT NULL DEFAULT now()+interval '7 days'
             );
+            ALTER TABLE image_comparisons ADD COLUMN IF NOT EXISTS browser_key text;
             CREATE INDEX IF NOT EXISTS image_queue ON image_comparisons(state,created);
             CREATE TABLE IF NOT EXISTS comparison_photos (
                 id uuid PRIMARY KEY, comparison_id uuid NOT NULL REFERENCES image_comparisons ON DELETE CASCADE,
