@@ -1,38 +1,8 @@
 <!doctype html>
-<html lang="ko">
-<head>
-<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="theme-color" content="#193d37"><link rel="icon" href="data:,">
-<title>운전자 안전도 분석 | Driver Rating</title><link rel="stylesheet" href="/assets/style.css">
-<script defer src="/assets/app.js"></script>
-</head>
-<body>
-<header><div class="nav"><a class="brand" href="/"><span class="mark" aria-hidden="true">↗</span> Driver Rating</a><span id="health" class="health">모델 연결 중</span></div></header>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#132e30"><title>Driver Rating · 운전 자세 분석</title><link rel="stylesheet" href="/assets/style.css"><script type="module" src="/assets/app.js"></script></head>
+<body><header><div class="bar"><a class="brand" href="#new"><span class="mark" aria-hidden="true">∥</span> Driver Rating</a><nav id="nav" hidden><a href="#new">새 분석</a><a href="#history">저장된 결과</a><button id="logout" class="quiet">로그아웃</button></nav></div></header>
 <main>
-<div class="heading"><h1>운전자 안전도 분석</h1><p>운전석 영상에서 확인한 자세와 지속 시간을 바탕으로 안전도와 판정률을 계산합니다.</p></div>
-<section class="card" aria-labelledby="upload-title">
-<h2 id="upload-title">운전석 영상</h2>
-<form id="form">
-<div class="input-group"><div id="drop" class="drop"><label for="file"><span class="upload-icon" aria-hidden="true">↑</span><strong id="filename">영상을 선택하거나 여기에 놓으세요</strong><small>MP4 (H.264) · 최대 3분 · 100 MB · 1080p</small></label><input id="file" type="file" accept="video/mp4,.mp4"></div>
-<video id="preview" hidden controls muted playsinline preload="metadata" aria-label="선택한 영상 미리보기"></video></div>
-<p class="hint">고정 카메라로 한 운전자의 상체와 양손이 보이는 영상을 사용하세요. 원본은 분석 종료 후 삭제되고 결과는 7일간 보관됩니다.</p>
-<label class="code-field" for="demo-code">시연용 접근 코드
-<input id="demo-code" type="password" required maxlength="64" pattern="[!-~]+" autocomplete="off" autocapitalize="none" spellcheck="false">
-</label>
-<div class="actions"><span id="model"></span><button id="submit" type="submit" disabled>안전도 분석하기</button></div>
-</form>
-<p id="error" class="error" role="alert" hidden></p>
-</section>
-<section id="progress-section" class="card" aria-live="polite" hidden><div class="row"><h2 id="phase">분석 대기 중</h2><span id="progress-text"></span></div><progress id="progress" max="100" value="0"></progress></section>
-<section id="results" class="card" hidden aria-labelledby="result-title">
-<h2 id="result-title">분석 결과</h2>
-<div class="metrics"><div class="metric primary"><span>안전도 점수</span><strong id="score"></strong><small id="score-desc"></small></div>
-<div class="metric"><span>판정률</span><strong id="coverage"></strong><small id="time"></small></div></div>
-<p id="explanation"></p>
-<h3>자세별 판정 시간</h3>
-<div class="scroll"><table><thead><tr><th>자세</th><th>시간</th><th>위험도</th><th>감점 기여</th></tr></thead><tbody id="classes"></tbody></table></div>
-<h3>영상 구간</h3><div id="timeline" class="timeline"></div><p id="excluded" class="hint"></p>
-<details><summary>구간별 자세와 시각</summary><ul id="segments"></ul></details>
-<p id="versions" class="hint versions"></p>
-</section>
+<section id="gate" class="login" hidden><div class="login-title"><span class="eyebrow">DRIVER RATING</span><h1>운전 자세<br>비교 분석실</h1><p>사진 속 행동을 두 모델로 분석하고,<br>시간 순서에 따른 안전운전 점수를 비교하세요.</p></div><form id="login" class="panel"><h2>관리자 로그인</h2><label>시연용 접근 코드<input name="code" type="password" required maxlength="64" autocomplete="current-password"></label><button class="primary">분석실 열기</button><p id="authError" class="error" role="alert"></p></form></section>
+<p id="message" role="status" hidden></p>
+<section id="workspace" aria-live="off"></section>
 </main></body></html>

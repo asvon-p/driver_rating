@@ -1,0 +1,43 @@
+{
+  "name": "R10KF · 임시 A",
+  "adapter": "driver.predictor:ResNetEnsemble",
+  "root": "../.runtime/models/A",
+  "checkpoints": [
+    "R10KF_fold0_best.pt",
+    "R10KF_fold1_best.pt",
+    "R10KF_fold2_best.pt",
+    "R10KF_fold3_best.pt",
+    "R10KF_fold4_best.pt"
+  ],
+  "image_size": [
+    384,
+    384
+  ],
+  "classes": [
+    "c0",
+    "c1",
+    "c2",
+    "c3",
+    "c4",
+    "c5",
+    "c6",
+    "c7",
+    "c8",
+    "c9"
+  ],
+  "mean": [
+    0.485,
+    0.456,
+    0.406
+  ],
+  "std": [
+    0.229,
+    0.224,
+    0.225
+  ],
+  "temperature": 1,
+  "provisional": true,
+  "description": "팀 R10KF 5-fold · 원본 및 중앙 확대 TTA",
+  "architecture": "r10",
+  "zoom_size": 415
+}

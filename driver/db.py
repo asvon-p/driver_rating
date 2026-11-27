@@ -16,6 +16,26 @@ def connect():
 def initialize():
     with connect() as db:
         db.execute("""
+            CREATE TABLE IF NOT EXISTS image_comparisons (
+                id uuid PRIMARY KEY, title text NOT NULL, state text NOT NULL DEFAULT 'queued',
+                models jsonb NOT NULL, rules jsonb NOT NULL, summary jsonb, error text,
+                attempts integer NOT NULL DEFAULT 0, pinned boolean NOT NULL DEFAULT false,
+                photo_count integer NOT NULL, processed integer NOT NULL DEFAULT 0,
+                created timestamptz NOT NULL DEFAULT now(), expires timestamptz NOT NULL DEFAULT now()+interval '7 days'
+            );
+            CREATE INDEX IF NOT EXISTS image_queue ON image_comparisons(state,created);
+            CREATE TABLE IF NOT EXISTS comparison_photos (
+                id uuid PRIMARY KEY, comparison_id uuid NOT NULL REFERENCES image_comparisons ON DELETE CASCADE,
+                position integer NOT NULL, name text NOT NULL, metadata jsonb NOT NULL,
+                pixels bytea NOT NULL, thumbnail bytea NOT NULL, results jsonb,
+                UNIQUE(comparison_id,position)
+            );
+            CREATE TABLE IF NOT EXISTS comparison_heatmaps (
+                photo_id uuid NOT NULL REFERENCES comparison_photos ON DELETE CASCADE,
+                role text NOT NULL, method text NOT NULL, state text NOT NULL DEFAULT 'queued',
+                image bytea, error text, attempts integer NOT NULL DEFAULT 0,
+                PRIMARY KEY(photo_id,role,method)
+            );
             CREATE TABLE IF NOT EXISTS policy_versions (
                 id text PRIMARY KEY, settings jsonb NOT NULL
             );

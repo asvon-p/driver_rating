@@ -1,6 +1,7 @@
 import argparse
 import importlib.util
 import os
+import shutil
 import socket
 import subprocess
 import sys
@@ -13,8 +14,10 @@ from local_runtime import ROOT, STATE, database_start, environment, pg_ctl
 def main():
     parser = argparse.ArgumentParser(description="Driver Rating local server")
     parser.add_argument("--port", type=int, default=8017)
-    parser.add_argument("--worker", action="store_true", help=argparse.SUPPRESS)
-    parser.add_argument("--stop", action="store_true", help="Stop this project's running server")
+    mode = parser.add_mutually_exclusive_group()
+    mode.add_argument("--worker", action="store_true", help=argparse.SUPPRESS)
+    mode.add_argument("--stop", action="store_true", help="Stop this project's running server")
+    mode.add_argument("--demo", action="store_true", help="Share this session via Tailscale Funnel on HTTPS port 10000")
     args = parser.parse_args()
     environment()
     stop_file = STATE / "stop.request"
@@ -27,6 +30,9 @@ def main():
 
         run_worker()
         return
+    tailscale = shutil.which("tailscale") if args.demo else None
+    if args.demo and not tailscale:
+        parser.error("Tailscale CLI is required for --demo.")
     # Hold a project-wide lock across startup and shutdown, including PostgreSQL.
     instance_lock = (STATE / "server.lock").open("a+b")
     try:
@@ -64,8 +70,11 @@ def main():
             probe.bind(("127.0.0.1", args.port))
         except OSError:
             parser.error(f"Local port {args.port} is occupied. Try start.ps1 -Port 8010.")
+    os.environ["DRIVER_PUBLIC_SESSION"] = "1" if args.demo else "0"
     own_pg = database_start()
     child = None
+    funnel = None
+    demo_error = None
     try:
         from driver.db import connect, initialize
 
@@ -98,12 +107,26 @@ def main():
         closing = threading.Event()
 
         def supervise():
-            nonlocal child
+            nonlocal child, funnel, demo_error
             restarts = 0
             while not closing.wait(0.5) and not server.should_exit:
                 if stop_file.exists():
                     server.should_exit = True
                     return
+                if tailscale and server.started:
+                    if funnel is None:
+                        try:
+                            funnel = subprocess.Popen(
+                                [tailscale, "funnel", "--https=10000", f"http://127.0.0.1:{args.port}"],
+                                stdin=subprocess.DEVNULL,
+                            )
+                        except OSError as exc:
+                            demo_error = f"Could not start Tailscale Funnel: {exc}"
+                    elif funnel.poll() is not None:
+                        demo_error = f"Tailscale Funnel exited (code {funnel.returncode})."
+                    if demo_error:
+                        server.should_exit = True
+                        return
                 if child.poll() is not None:
                     if restarts == 0:
                         child.stdin.close()
@@ -122,7 +145,16 @@ def main():
         finally:
             closing.set()
             monitor.join()
+        if demo_error:
+            raise SystemExit(demo_error)
     finally:
+        if funnel is not None and funnel.poll() is None:
+            funnel.terminate()
+            try:
+                funnel.wait(timeout=5)
+            except subprocess.TimeoutExpired:
+                funnel.kill()
+                funnel.wait()
         if child is not None:
             child.stdin.close()
             try:

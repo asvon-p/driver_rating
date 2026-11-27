@@ -1,0 +1,41 @@
+{
+  "name": "ResNet50 baseline · 임시 B",
+  "adapter": "driver.predictor:ResNetEnsemble",
+  "root": "../.runtime/models/B",
+  "checkpoints": [
+    "fold_0/best_model.pt",
+    "fold_1/best_model.pt",
+    "fold_2/best_model.pt",
+    "fold_3/best_model.pt",
+    "fold_4/best_model.pt"
+  ],
+  "image_size": [
+    224,
+    224
+  ],
+  "classes": [
+    "c0",
+    "c1",
+    "c2",
+    "c3",
+    "c4",
+    "c5",
+    "c6",
+    "c7",
+    "c8",
+    "c9"
+  ],
+  "mean": [
+    0.485,
+    0.456,
+    0.406
+  ],
+  "std": [
+    0.229,
+    0.224,
+    0.225
+  ],
+  "temperature": 1,
+  "provisional": true,
+  "description": "기존 원본 학습 baseline · 증강 최종 모델 교체 대기"
+}

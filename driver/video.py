@@ -96,14 +96,19 @@ def assess_frame(frame):
     rotation = int(frame.rotation) % 360
     if rotation:
         image = image.rotate(rotation, expand=True)
+    return assess_image(image)
+
+
+def assess_image(image, thresholds=None):
+    thresholds = POLICY if thresholds is None else thresholds
     gray = np.asarray(
         image.convert("L").resize((160, 120), Image.Resampling.BILINEAR), dtype=np.float32
     )
     lap = 4 * gray[1:-1, 1:-1] - gray[:-2, 1:-1] - gray[2:, 1:-1] - gray[1:-1, :-2] - gray[1:-1, 2:]
     if (
-        gray.mean() < POLICY["min_brightness"]
-        or gray.std() < POLICY["min_contrast"]
-        or lap.var() < POLICY["min_sharpness"]
+        gray.mean() < thresholds["min_brightness"]
+        or gray.std() < thresholds["min_contrast"]
+        or lap.var() < thresholds["min_sharpness"]
     ):
         return None, "quality"
     return image, None

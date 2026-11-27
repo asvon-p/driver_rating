@@ -1,6 +1,6 @@
 # Driver Rating
 
-운전석 MP4 영상 한 편을 올리면 팀의 ResNet50 5개가 각 표본을 분류한다. 결과 화면에서 안전도, 판정률, 자세별 시간·감점, 미판정 사유, 시간대별 자세를 확인할 수 있다.
+관리자가 사진 묶음을 오래된 관찰부터 정렬하면 모델 A·B가 같은 사진을 분류한다. 사진별 안전점수와 근거, 최근 관찰을 더 반영하는 EMA, 모델별 Grad-CAM을 비교하고 발표용 사례를 다시 열 수 있다.
 
 ## 가상환경 준비
 
@@ -23,16 +23,16 @@ CPU에서만 사용할 경우 첫 번째 pip 명령의 인덱스를 `https://dow
 
 ## 로컬·시연 서버 실행 및 중지
 
-로컬과 공개 시연은 호스트 PC에서 실행하는 같은 분석 서버를 사용한다. 학교 컴퓨터에서는 브라우저로 공개 시연 주소를 열면 된다.
+호스트 PC에서 사용할 모드를 골라 PowerShell 창 하나에서 실행한다. 기본 모드는 로컬 접속용이다. 공개 시연을 선택하면 분석 서버가 준비된 뒤 이 실행에 한해 Tailscale Funnel의 HTTPS 10000 포트를 연다.
 
 | 구분 | 접속 주소 | 호스트 PC에서 실행 | 호스트 PC에서 중지 |
 | --- | --- | --- | --- |
 | 로컬 분석 서버 | [http://127.0.0.1:8017/](http://127.0.0.1:8017/) | `.\start.ps1` | 실행 창에서 `Ctrl+C` 또는 프로젝트 폴더의 다른 PowerShell에서 `.\start.ps1 -Stop` |
-| 공개 시연 서버 | [https://sgy-host.taile39b25.ts.net:10000/](https://sgy-host.taile39b25.ts.net:10000/) | `tailscale funnel --bg --https=10000 http://127.0.0.1:8017` | `tailscale funnel --https=10000 off` |
+| 공개 시연 서버 | [https://sgy-host.taile39b25.ts.net:10000/](https://sgy-host.taile39b25.ts.net:10000/) | `.\start.ps1 -Demo` | 실행 창에서 `Ctrl+C` 또는 다른 PowerShell에서 `.\start.ps1 -Stop` |
 
 ### 1. 호스트 PC에서 분석 서버 시작
 
-첫 실행 전 팀에서 별도로 받은 체크포인트 5개를 [모델 변경](#모델-변경)에 설명된 경로에 준비한다. 아래 경로와 표의 공개 주소는 현재 시연 호스트 기준이다. 다른 PC에서는 실제 복제 경로를 사용하고, 공개 주소는 그 PC에서 `tailscale funnel status`로 확인한다.
+첫 실행 전 팀에서 별도로 받은 A·B 체크포인트를 [모델 변경](#모델-변경)에 설명된 경로에 준비한다. 아래 경로와 표의 공개 주소는 현재 시연 호스트 기준이다. 다른 PC에서는 실제 복제 경로를 사용하고, 공개 주소는 그 PC에서 `tailscale funnel status`로 확인한다.
 
 첫 번째 PowerShell에서 다음 명령을 실행하고 창을 열어 둔다. `driver_rating` 환경이 이미 활성화되어 있으면 `conda activate`는 생략한다.
 
@@ -42,84 +42,67 @@ conda activate driver_rating
 .\start.ps1
 ```
 
-로컬 주소를 열어 **분석 준비 완료**가 표시되는지 확인한다. API와 모델 워커는 활성 환경의 Python을 사용한다. PowerShell 스크립트 실행이 제한된 환경에서는 `python -B -X utf8 run.py`로 시작하고 `python -B -X utf8 run.py --stop`으로 종료한다. `-Port 8018`처럼 포트를 변경했다면 Funnel 명령의 대상 포트도 맞춘다. 한 프로젝트에서는 분석 서버 한 개를 실행한다.
+공개 시연을 하려면 위 마지막 줄을 `.\start.ps1 -Demo`로 바꾼다. 이미 실행 중인 서버의 모드를 바꾸려면 먼저 종료한다. 관리자 로그인 후 새 분석 화면에서 모델 상태를 확인한다. PowerShell 스크립트 실행이 제한된 환경에서는 `python -B -X utf8 run.py`(로컬), `python -B -X utf8 run.py --demo`(시연), `python -B -X utf8 run.py --stop`(종료)을 사용한다. `-Port 8018`처럼 로컬 포트를 지정하면 공개 연결도 해당 포트를 사용한다.
 
 ### 2. 접근 코드 확인 및 공개 연결
 
-호스트 PC의 두 번째 PowerShell에서 다음 명령으로 업로드용 접근 코드를 확인한다. 이 코드는 첫 서버 시작 때 생성되며 재시작 후에도 유지된다. 코드와 시연 영상은 Git에서 제외한다.
+호스트 PC의 두 번째 PowerShell에서 다음 명령으로 관리자 접근 코드를 확인한다. 이 코드는 첫 서버 시작 때 생성되며 재시작 후에도 유지된다. 코드와 저장된 사진은 Git에서 제외한다.
 
 ```powershell
 Set-Location 'C:\Users\user\Desktop\vscode setting\driver_rating'
 Get-Content -LiteralPath .\.runtime\demo-access-code
 ```
 
-새로 복제해 실행한 서버는 자체 접근 코드를 생성한다. 공개 연결을 열기 전에 다음 명령으로 코드 없는 업로드 요청이 `403`으로 거절되는지 확인할 수 있다.
+새로 복제해 실행한 서버는 자체 접근 코드를 생성한다. 공개 연결을 열기 전에 다음 명령으로 로그인하지 않은 결과 목록 요청이 `403`으로 거절되는지 확인할 수 있다.
 
 ```powershell
-curl.exe -s -o NUL -w "%{http_code}" -X POST http://127.0.0.1:8017/analyses
+curl.exe -s -o NUL -w "%{http_code}" http://127.0.0.1:8017/api/image-comparisons
 ```
 
-같은 창에서 `tailscale funnel status`를 실행한다. `:10000`에 `Funnel on`과 `http://127.0.0.1:8017`이 표시되면 이미 공개 중이다. 꺼져 있으면 다음 명령을 실행한다.
+시연 모드의 공개 주소와 대상 포트는 두 번째 창에서 확인한다.
 
 ```powershell
-tailscale funnel --bg --https=10000 http://127.0.0.1:8017
 tailscale funnel status
 ```
 
-학교 컴퓨터에서 공개 시연 주소를 열고 영상을 선택한 뒤 접근 코드를 입력하고 **안전도 분석하기**를 누른다. 학교 컴퓨터에는 Tailscale 설치가 필요 없다. 시연 중에는 호스트 PC의 절전 모드를 해제하고 Tailscale과 분석 서버를 켜 둔다. 업로드한 브라우저에서 새로고침하면 마지막 결과를 다시 볼 수 있다.
+학교 컴퓨터에서 공개 시연 주소를 열고 접근 코드로 로그인한다. **저장된 결과**에서 발표 사례를 열거나 **새 분석**에서 사진을 정렬해 업로드한다. 호스트 PC에서 시연하는 동안 서버와 Tailscale을 실행한다.
 
 ### 3. 시연 종료
 
-1. 호스트 PC의 두 번째 PowerShell에서 `tailscale funnel --https=10000 off`를 실행하면 공개 접속이 종료된다. 이 명령은 시연용 `10000` 포트에만 적용되며, 기존 `443` 서비스는 계속 운영된다.
-2. 로컬 분석도 끝내려면 첫 번째 창에서 `Ctrl+C`를 누른다. 백그라운드로 실행했다면 프로젝트 폴더에서 `.\start.ps1 -Stop`을 실행한다.
+실행 창에서 `Ctrl+C`를 누르거나 프로젝트 폴더의 다른 PowerShell에서 `.\start.ps1 -Stop`을 실행한다. 실행기가 이번 시연의 공개 연결, 모델 워커, 직접 시작한 PostgreSQL을 함께 정리한다. `tailscale funnel status`에서 10000 포트 연결 종료를 확인할 수 있다.
 
 접근 코드를 교체하려면 분석 서버를 종료하고 `.runtime/demo-access-code` 파일을 삭제한 뒤 서버를 다시 시작한다.
 
-## 시연 영상
+## 사진 묶음 분석
 
-**입력 조건**은 H.264 MP4, 최대 3분, 100 MB, 1920×1080(세로 영상 포함)이다. 고정 카메라로 한 운전자의 상체와 양손이 보이는 영상을 사용한다. 개발 PC에서 사용한 로컬 시연 파일은 `.runtime/demo/driver-demo.mp4`다. 저장소를 새로 받은 경우 직접 준비한 영상을 사용한다. 기존 팀 학습 사진으로 만든 20초 클립이며 일반 운전 12초, 오른손 문자 입력 4초, 검은 화면 4초로 구성했다. 이 PC에서 검증한 결과는 75.0점, 판정률 80.0%다.
+1. JPG·PNG를 최대 24장 선택하고 **↑ / ↓**로 오래된 사진부터 배열한다. 사진당 10 MiB·2,000만 픽셀, 묶음 전송량 48 MiB까지 지원한다. 카메라 시점·출처·검수 정답을 기록하거나 운전자 없음·10종 외 행동을 제외할 수 있다.
+2. **분석 실행**을 누른다. 두 카드는 독립적으로 유효 사진 수, 판정률, EMA, 반복된 자세와 최근 관찰을 보여 준다. 시연에서 여러 사람을 섞는 경우도 하나의 가상 운전자로 취급한다.
+3. 그래프나 썸네일에서 사진을 선택한다. **점수 계산 보기**는 예측 클래스·위험도·신뢰도와 검수 정답이 있을 때 절대오차를 보여 준다. **Grad-CAM 보기**는 해당 모델의 목표 클래스에 대한 히트맵을 생성하고 저장한다. **선택 사진의 양쪽 Grad-CAM 저장**으로 발표 전 양쪽을 준비할 수 있다.
+4. **발표용 고정**을 누르면 사례가 목록 상단에 표시된다. 일반 사례는 7일간 보관하고, 고정 해제 시 그때부터 다시 7일간 보관한다. 관리자 로그인 후 다른 브라우저에서도 스냅샷을 열 수 있다. 묶음 삭제 시 사진·결과·히트맵이 함께 삭제된다.
 
-## 분석 방식
-
-- 영상 트랙의 재생 타임스탬프를 0.5초 구간으로 나누고, 각 구간의 중앙에 가장 가까운 프레임을 선택한다. 마지막 구간은 실제 길이만 반영한다. 프레임이 없는 구간은 제외한다.
-- 디스플레이 회전을 적용한 RGB 이미지를 팀 검증 코드와 같은 224×224 직접 리사이즈 및 ImageNet 정규화로 처리한다. 워커가 `fold_0`~`fold_4`의 `best_model.pt`를 한 번씩 읽는다. 각 모델의 10종 softmax 확률을 동일 가중치로 평균한 뒤 최댓값을 선택한다.
-- 어둡거나 대비·선명도가 낮은 화면, 최고 앙상블 확률이 0.70 미만인 구간은 미판정이다. 이 방식에서는 도로 전방, 다른 사람, 학습하지 않은 행동을 높은 신뢰도로 잘못 분류할 수 있다. 일반 운전 c0는 운전자의 자세에 관한 분류다.
-- 안전도 = 100 − Σ(자세별 인정 시간 × 위험도) / 총 인정 시간. 판정률 = 총 인정 시간 / 전체 영상 시간 × 100. 총 인정 시간이 10초 미만이거나 판정률이 70% 미만이면 점수는 `null`이고 판정률과 이유를 표시한다. 조건은 반올림 전 값으로 검사한다.
-- 위험도는 c0~c9 순서로 **0, 100, 70, 100, 70, 40, 50, 90, 80, 30**이다. 위험도와 보류 기준은 시연용 정책이다. `driver/scoring.py`의 정책 설정이 바뀌면 정책 식별자가 달라진다.
+사진 점수는 **100 − 예측 자세 위험도**다. 안전 운전은 85점 이상, 일반 운전은 60점 이상 85점 미만, 위험 운전은 60점 미만이다. 화질 기준 미달 또는 모델 신뢰도 70% 미만이면 보류한다. 각 모델의 EMA는 유효 사진만 대상으로 최근부터 1, 0.7, 0.7², …의 상대 가중치를 준다. 한 장은 순간 판단만, 두 장은 잠정 경향으로 표시한다. 두 모델 사이의 묶음 점수 차이는 공통 판정 사진이 두 장 이상일 때 그 사진들로 다시 계산한다. [점수와 발표 계획](IMAGE_COMPARISON_SERVICE_PLAN.md)
 
 ## 모델 변경
 
-기본 모델 설정은 `models/team-resnet50.json`이다. `root`는 이 JSON의 위치를 기준으로 한 경로 또는 절대 경로다. 기본 설정은 프로젝트와 나란히 있는 `deep_learning_team/5_fold/team_folds/results/baseline`을 읽기 전용으로 참조한다. 체크포인트는 별도로 준비해 `fold_0`부터 `fold_4`까지 각각의 `best_model.pt`를 두거나, 로컬 모델 설정에서 경로를 지정한다. 프로젝트가 체크포인트나 Kaggle 사진을 원래 폴더에 쓰지 않는다.
+현재 서비스의 임시 조합은 다음과 같다. 두 모델의 차이로 증강 학습 효과를 단정할 수 없다.
 
-1. 같은 ResNet50 구조로 교체할 때는 `models`에 새 JSON을 만들고 `name`, `root`, `checkpoints`, `image_size`, `mean`, `std`, `temperature`를 해당 학습 설정에 맞춘다. `checkpoints`에 파일을 하나 넣으면 단일 모델, 여러 개 넣으면 동일 가중치 확률 평균을 사용한다. 기본 로더는 `model_state`와 10개 출력의 `fc`를 요구한다.
-2. 다른 CNN이면 `driver` 아래에 `__init__(manifest, paths)`와 `predict_batch(images)`를 가진 어댑터를 작성한다. RGB PIL 이미지 목록을 받아 **N×10 확률 배열**을 c0~c9 순서로 반환한다. JSON의 `adapter`를 해당 `모듈:클래스`로 지정한다. 코드와 설정은 운영자가 관리하는 로컬 파일에서만 로드한다.
-3. 기존 서버를 종료한 후 아래처럼 모델을 선택해 시작한다. 로더는 체크포인트의 키와 출력 확률을 검사한다. 준비가 실패하면 UI가 업로드를 막고 `.runtime/logs/worker.log`에 원인을 남긴다. 모델을 바꾼 후에는 고정 영상의 자세별 시간과 미판정 비율을 다시 확인한다.
+| 역할 | 설정 | 기본 가중치 경로 | 추론 |
+| --- | --- | --- | --- |
+| A · R10KF | `models/comparison-a.json` | `.runtime/models/A/R10KF_fold0_best.pt` ~ `R10KF_fold4_best.pt` | 384×384, 원본·415 중앙 크롭, fold 내부 평균 로짓 → softmax → 5개 fold 평균 |
+| B · 기존 baseline | `models/comparison-b.json` | `.runtime/models/B/fold_0/best_model.pt` ~ `fold_4/best_model.pt` | 224×224, fold별 softmax 후 5개 확률 평균 |
+
+새로 복제한 PC에는 체크포인트를 별도로 배치한다. 확정 모델을 받을 때는 해당 JSON의 `name`, `description`, `provisional`, `architecture`, `root`, `checkpoints`, 입력 크기·정규화·TTA를 실제 학습 설정과 맞춘다. R10은 순수 state dict, baseline은 `model_state`를 포함한 체크포인트를 사용한다. 다른 구조는 `predict_batch(images)`와 `heatmap(image, target)`를 제공하는 운영자 관리 어댑터를 등록한다. 서버를 재시작하면 내용 해시로 새 버전을 구분한다. 모델 하나만 준비된 경우에도 해당 모델로 분석할 수 있다.
+
+다른 설정 파일을 선택하려면 서버 시작 전에 역할별 변수를 지정한다. CPU 추론은 `$env:DRIVER_DEVICE = "cpu"`로 선택한다.
 
 ```powershell
-$env:DRIVER_MODEL_CONFIG = (Resolve-Path ".\models\team-resnet50.json").Path
+$env:DRIVER_MODEL_A_CONFIG = (Resolve-Path ".\models\comparison-a.json").Path
+$env:DRIVER_MODEL_B_CONFIG = (Resolve-Path ".\models\comparison-b.json").Path
 .\start.ps1
 ```
 
-결과에는 설정과 체크포인트 내용에서 계산한 모델 식별자, 실행 장치, 점수 정책 식별자가 함께 저장된다. 기본 장치 선택은 CUDA 우선이며 CPU에서 실행하려면 시작 전에 `$env:DRIVER_DEVICE = "cpu"`를 지정한다.
+## 저장과 검증
 
-## 서버와 저장 위치
+FastAPI와 전용 워커가 PostgreSQL 작업 큐를 사용한다. 원본 방향을 보정해 메타데이터를 제거한 RGB 사진, 썸네일, 모델 버전·정책·순서와 결과, 생성한 히트맵을 같은 DB에 보관한다. 로컬 PostgreSQL 데이터는 `.runtime/pgdata`, 워커 로그는 `.runtime/logs/worker.log`에 있다. 외부 PostgreSQL을 지정한 경우 사진 자료도 그 DB에 보관된다. 중단 후에는 완료된 사진 결과를 재사용하고 확정 순번으로 EMA를 복원한다. 모델 교체 후에도 기존 스냅샷·캐시된 히트맵은 그대로 조회하며 새 히트맵에는 당시 모델 버전이 필요하다.
 
-FastAPI는 업로드와 결과 조회를 맡고, 별도 워커 프로세스가 PostgreSQL 작업 큐에서 영상을 가져간다. 워커는 구간과 점수를 한 트랜잭션으로 저장한다. 실행 중 중단된 작업은 다음 워커가 한 차례 재시도한다. 요청 브라우저의 세션 쿠키 지문으로 결과 조회를 제한한다.
-
-| 경로 또는 포트 | 용도 |
-| --- | --- |
-| `127.0.0.1:8017` | 웹 UI와 FastAPI. `GET /health`에서 현재 모델 준비 상태를 확인한다. |
-| `127.0.0.1:15432` | 프로젝트 전용 PostgreSQL 17.12. 인증 정보는 `.runtime/db-password`에 로컬 보관한다. |
-| `.runtime/pgdata` | 분석 상태, 결과, 시간대별 구간, 정책 버전. 보관 기간 7일. |
-| `.runtime/uploads`, `.runtime/tmp` | 업로드·디코딩 임시 파일. 종료 후 원본을 삭제하며, 워커가 기동 중이면 중단된 원본도 24시간을 기준으로 정리한다. 프레임은 메모리에서 처리한다. |
-| `.runtime/postgres`, `.runtime/logs` | 로컬 PostgreSQL 실행 파일과 워커·DB 로그. Python 라이브러리는 활성 conda 환경에 설치한다. |
-
-`POST /analyses`는 `X-Demo-Code` 헤더를 먼저 검사한다. 코드가 없거나 틀리면 403을 반환한다. 코드가 맞으면 `video` multipart 파일을 받아 202와 분석 ID를 반환한다. `GET /analyses/{id}`에서 대기·처리·완료·보류·실패 상태를 확인한다. `GET /analyses/{id}/result`는 점수, 판정률(%), 구간 시각(ms), 자세별 시간(초), 제외 사유를 반환한다. 상태와 결과 조회에는 업로드 세션 쿠키를 함께 보낸다.
-
-Windows x64에서 최초 실행 시 Maven Central의 [PostgreSQL 배포본](https://repo.maven.apache.org/maven2/io/zonky/test/postgres/embedded-postgres-binaries-windows-amd64/17.12.0/)을 프로젝트 안에 내려받아 SHA-256을 검증한다. 이후 같은 환경과 체크포인트로 오프라인에서 다시 시작할 수 있다. 기존 PostgreSQL을 사용할 경우 전용 빈 DB의 연결 문자열을 `DRIVER_DATABASE_URL`에 설정하고 해당 Python에서 사용할 수 있는 libpq 또는 psycopg 바이너리 드라이버를 준비한다.
-
-## 검증
-
-프로젝트 폴더에서 `python -B -m unittest discover -s tests -v`를 실행한다. 계획서의 73.3점 예시, 0점과 보류의 구분, 판정 기준 경계, 가변 프레임 간격·공백·마지막 구간 처리를 검증한다.
-
-현재 기본 체크포인트를 팀 제출 파일의 첫 64장과 동일한 배치 크기로 대조했을 때 10개 클래스 확률의 최대 절대 차이는 5×10⁻¹¹ 미만이었다. GPU의 배치 크기에 따라 부동소수점 연산 결과에는 미세한 차이가 있다. 시연 영상과 이 대조는 연결 검증에 사용했다.
+프로젝트 폴더에서 `python -B -m unittest discover -s tests -v`로 점수 경계, 순서 반전, 보류와 공통 관찰 처리 및 수동 실행 동작을 검사한다.
